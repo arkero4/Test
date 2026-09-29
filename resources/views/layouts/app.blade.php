@@ -17,6 +17,7 @@
             <a @class(['active' => request()->routeIs('requirements.*', 'tasks.*', 'executions.*')]) href="{{ route('requirements.index') }}">▤ &nbsp; Requerimientos</a>
             <a @class(['active' => request()->routeIs('projects.*')]) href="{{ route('projects.index') }}">▦ &nbsp; Proyectos</a>
             <a @class(['active' => request()->routeIs('workers.*')]) href="{{ route('workers.index') }}">◉ &nbsp; Workers</a>
+            <a @class(['active' => request()->routeIs('integrations.*')]) href="{{ route('integrations.index') }}">⇄ &nbsp; Integraciones</a>
         </nav>
         <div class="sidebar-bottom"><small>{{ auth()->user()->email }}</small><form action="{{ route('logout') }}" method="post">@csrf<button class="text-button">Cerrar sesión</button></form></div>
     </aside>

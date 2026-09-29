@@ -4,7 +4,7 @@
 @section('content')
 <div class="page-heading"><div><p class="eyebrow">MONITOR / EN VIVO</p><h1>Centro de operaciones</h1><p class="muted">Estado de requerimientos, agentes y workers. Se actualiza cada 20 segundos.</p></div><a class="button primary" href="{{ route('requirements.create') }}">+ Nuevo requerimiento</a></div>
 <div class="metrics">
-@foreach(['RECEIVED'=>'Nuevos','ANALYZING'=>'Analizando','PLANNING'=>'Planificando','QUEUED'=>'En cola','IMPLEMENTING'=>'Ejecutándose','TESTING'=>'Probando','WAITING_APPROVAL'=>'Aprobación','COMPLETED'=>'Completados','FAILED'=>'Fallidos'] as $key=>$label)
+@foreach(['RECEIVED'=>'Nuevos','WAITING_RESPONSE'=>'Por responder','ANALYZING'=>'Analizando','PLANNING'=>'Planificando','QUEUED'=>'En cola','IMPLEMENTING'=>'Ejecutándose','TESTING'=>'Probando','WAITING_APPROVAL'=>'Aprobación','COMPLETED'=>'Completados','FAILED'=>'Fallidos'] as $key=>$label)
 <div class="metric"><span>{{ $label }}</span><strong>{{ $counts[$key] ?? 0 }}</strong><small>{{ $key }}</small></div>
 @endforeach
 </div>

@@ -13,7 +13,7 @@ class Requirement extends Model
 
     protected function casts(): array
     {
-        return ['technical_analysis' => 'array', 'requires_approval' => 'boolean', 'received_at' => 'datetime'];
+        return ['technical_analysis' => 'array', 'requires_approval' => 'boolean', 'received_at' => 'datetime', 'responded_at' => 'datetime'];
     }
 
     public function project()

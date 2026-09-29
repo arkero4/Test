@@ -8,6 +8,8 @@ Laravel 13, PHP 8.3+, autenticación de panel, CRUD de proyectos y workers, memo
 
 Dot puede enviar requerimientos mediante una API de ingreso independiente, sin acceso a ejecución ni aprobación. La lectura de Gmail, Asana y otras fuentes sigue a cargo de Dot, fuera de este repositorio.
 
+Los correos que solo requieren una respuesta se registran como `PROJECT_RESPONSE`. Tienen un flujo manual separado de las tareas de desarrollo; el usuario registra qué respondió para cerrarlos. El panel de **Integraciones** muestra el estado de la credencial de ingesta y su actividad sin mostrar el token.
+
 ## Inicio local
 
 ```bash
@@ -43,6 +45,7 @@ El comando de administrador pide una contraseña de al menos 12 caracteres por c
 - [Mejora del sistema](docs/SELF_IMPROVEMENT.md)
 - [Despliegue](docs/DEPLOYMENT.md)
 - [API de ingreso para Dot](docs/DOT_INGESTION_API.md)
+- [Preparación de Dots](docs/DOT_SETUP.md)
 
 ## Seguridad
 

@@ -10,12 +10,21 @@ use App\Services\Lifecycle;
 use App\Services\SensitiveText;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class RequirementController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return view('requirements.index', ['requirements' => Requirement::with('project')->latest()->paginate(25)]);
+        $kind = $request->query('kind');
+        if ($kind !== null && ! in_array($kind, ['DEVELOPMENT', 'PROJECT_RESPONSE', 'SYSTEM_IMPROVEMENT'], true)) {
+            abort(422);
+        }
+
+        return view('requirements.index', [
+            'requirements' => Requirement::with('project')->when($kind, fn ($query) => $query->where('kind', $kind))->latest()->paginate(25)->withQueryString(),
+            'kind' => $kind,
+        ]);
     }
 
     public function create()
@@ -28,15 +37,18 @@ class RequirementController extends Controller
         return view('requirements.form', ['requirement' => $requirement, 'projects' => Project::where('status', 'ACTIVE')->orderBy('name')->get()]);
     }
 
-    public function show(Requirement $requirement)
+    public function show(Requirement $requirement, Lifecycle $lifecycle)
     {
-        return view('requirements.show', ['requirement' => $requirement->load('project', 'plans', 'tasks.executions.worker', 'events', 'approvals'), 'projects' => Project::where('status', 'ACTIVE')->orderBy('name')->get()]);
+        return view('requirements.show', [
+            'requirement' => $requirement->load('project', 'plans', 'tasks.executions.worker', 'events', 'approvals'),
+            'nextStatuses' => $lifecycle->availableTransitions($requirement),
+        ]);
     }
 
     private function fields(Request $request): array
     {
-        return SensitiveText::cleanArray($request->validate([
-            'kind' => ['required', Rule::in(['DEVELOPMENT', 'SYSTEM_IMPROVEMENT'])],
+        $data = SensitiveText::cleanArray($request->validate([
+            'kind' => ['required', Rule::in(['DEVELOPMENT', 'PROJECT_RESPONSE', 'SYSTEM_IMPROVEMENT'])],
             'source' => ['required', 'string', 'max:64', 'regex:/\A[a-z][a-z0-9_-]{0,63}\z/'],
             'external_reference' => ['nullable', 'string', 'max:255'], 'sender' => ['nullable', 'string', 'max:255'],
             'subject' => ['required', 'string', 'max:255'], 'original_content' => ['required', 'string'],
@@ -44,6 +56,11 @@ class RequirementController extends Controller
             'project_id' => ['nullable', 'exists:projects,id'], 'priority' => ['required', Rule::in(['LOW', 'NORMAL', 'HIGH', 'URGENT'])],
             'risk' => ['required', Rule::in(['UNKNOWN', 'LOW', 'MEDIUM', 'HIGH'])], 'requires_approval' => ['boolean'],
         ]));
+        if ($data['kind'] === 'PROJECT_RESPONSE') {
+            $data['requires_approval'] = true;
+        }
+
+        return $data;
     }
 
     public function store(Request $request, Lifecycle $lifecycle)
@@ -59,7 +76,11 @@ class RequirementController extends Controller
         if (in_array($requirement->status, ['COMPLETED', 'CANCELLED'], true)) {
             abort(409);
         }
-        $requirement->update($this->fields($request));
+        $fields = $this->fields($request);
+        if ($fields['kind'] !== $requirement->kind && (! in_array($requirement->status, ['RECEIVED', 'ANALYZING', 'CLASSIFIED', 'WAITING_INFORMATION'], true) || $requirement->tasks()->exists())) {
+            throw ValidationException::withMessages(['kind' => 'El tipo no se puede cambiar después de iniciar el trabajo.']);
+        }
+        $requirement->update($fields);
         $lifecycle->event($requirement, 'requirement.updated', 'user', userId: $request->user()->id);
 
         return redirect()->route('requirements.show', $requirement)->with('ok', 'Requerimiento actualizado.');
@@ -71,6 +92,14 @@ class RequirementController extends Controller
         $lifecycle->transition($requirement, $data['status'], 'user', $request->user()->id);
 
         return back()->with('ok', 'Estado actualizado.');
+    }
+
+    public function recordResponse(Request $request, Requirement $requirement, Lifecycle $lifecycle)
+    {
+        $data = $request->validate(['response_note' => ['required', 'string', 'max:4000']]);
+        $lifecycle->completeResponse($requirement, $data['response_note'], $request->user()->id);
+
+        return back()->with('ok', 'Respuesta registrada y requerimiento completado.');
     }
 
     public function plan(Request $request, Requirement $requirement, Lifecycle $lifecycle)

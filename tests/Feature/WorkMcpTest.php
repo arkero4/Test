@@ -51,6 +51,7 @@ class WorkMcpTest extends TestCase
             ->assertJsonPath('result.serverInfo.name', 'dev-orchestrator-work');
         $this->mcpJson('/api/mcp', $this->rpc('tools/list'))
             ->assertOk()->assertJsonPath('result.tools.0.name', 'create_requirement')
+            ->assertJsonPath('result.tools.0.inputSchema.properties.kind.enum.1', 'PROJECT_RESPONSE')
             ->assertJsonCount(1, 'result.tools');
         $this->assertDatabaseCount('requirements', 0);
         IngestionClient::where('slug', 'work')->update(['status' => 'DISABLED']);

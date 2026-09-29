@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\ExecutionController;
+use App\Http\Controllers\Web\IntegrationController;
 use App\Http\Controllers\Web\ProjectController;
 use App\Http\Controllers\Web\RequirementController;
 use App\Http\Controllers\Web\TaskController;
@@ -19,9 +20,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/projects/{project}/contexts', [ProjectController::class, 'context'])->name('projects.contexts.store');
     Route::delete('/projects/{project}/contexts/{context}', [ProjectController::class, 'deleteContext'])->name('projects.contexts.destroy');
     Route::resource('workers', WorkerController::class)->except('show');
+    Route::get('/integrations', IntegrationController::class)->name('integrations.index');
     Route::post('/workers/{worker}/token', [WorkerController::class, 'token'])->name('workers.token');
     Route::resource('requirements', RequirementController::class)->only(['index', 'create', 'store', 'show', 'edit', 'update']);
     Route::post('/requirements/{requirement}/transition', [RequirementController::class, 'transition'])->name('requirements.transition');
+    Route::post('/requirements/{requirement}/response', [RequirementController::class, 'recordResponse'])->name('requirements.response');
     Route::post('/requirements/{requirement}/plans', [RequirementController::class, 'plan'])->name('requirements.plans.store');
     Route::post('/requirements/{requirement}/approvals', [RequirementController::class, 'requestApproval'])->name('requirements.approvals.store');
     Route::post('/requirements/{requirement}/approvals/{approval}/decide', [RequirementController::class, 'decide'])->name('requirements.approvals.decide');

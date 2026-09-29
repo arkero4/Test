@@ -14,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 class Lifecycle
 {
     public const NEXT = [
-        'RECEIVED' => ['ANALYZING', 'CANCELLED'],
+        'RECEIVED' => ['ANALYZING', 'WAITING_RESPONSE', 'CANCELLED'],
         'ANALYZING' => ['CLASSIFIED', 'WAITING_INFORMATION', 'FAILED', 'CANCELLED'],
         'CLASSIFIED' => ['TECHNICAL_ANALYSIS', 'WAITING_INFORMATION', 'CANCELLED'],
         'TECHNICAL_ANALYSIS' => ['PLANNING', 'WAITING_INFORMATION', 'FAILED', 'CANCELLED'],
@@ -25,7 +25,8 @@ class Lifecycle
         'TESTING' => ['REVIEWING', 'WAITING_APPROVAL', 'FAILED', 'CANCELLED'],
         'REVIEWING' => ['WAITING_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED'],
         'WAITING_APPROVAL' => ['TESTING', 'COMPLETED', 'FAILED', 'CANCELLED'],
-        'WAITING_INFORMATION' => ['ANALYZING', 'TECHNICAL_ANALYSIS', 'PLANNING', 'CANCELLED'],
+        'WAITING_INFORMATION' => ['ANALYZING', 'TECHNICAL_ANALYSIS', 'PLANNING', 'WAITING_RESPONSE', 'CANCELLED'],
+        'WAITING_RESPONSE' => ['WAITING_INFORMATION', 'CANCELLED'],
         'FAILED' => ['PLANNING', 'QUEUED', 'CANCELLED'],
         'CANCELLED' => [], 'COMPLETED' => [],
     ];
@@ -41,7 +42,7 @@ class Lifecycle
 
     public function transition(Requirement $requirement, string $to, string $actor, ?int $userId = null): void
     {
-        if (! in_array($to, self::NEXT[$requirement->status] ?? [], true)) {
+        if (! in_array($to, $this->availableTransitions($requirement), true)) {
             throw ValidationException::withMessages(['status' => "Transición {$requirement->status} → {$to} no permitida."]);
         }
         if ($requirement->approvals()->where('status', 'PENDING')->exists() && ! in_array($to, ['WAITING_APPROVAL', 'FAILED', 'CANCELLED'], true)) {
@@ -74,6 +75,39 @@ class Lifecycle
         $from = $requirement->status;
         $requirement->update(['status' => $to]);
         $this->event($requirement, 'status.changed', $actor, $from, $to, userId: $userId);
+    }
+
+    public function availableTransitions(Requirement $requirement): array
+    {
+        if ($requirement->kind === 'PROJECT_RESPONSE') {
+            return match ($requirement->status) {
+                'RECEIVED', 'ANALYZING', 'CLASSIFIED', 'WAITING_INFORMATION' => ['WAITING_RESPONSE', 'CANCELLED'],
+                'WAITING_RESPONSE' => ['WAITING_INFORMATION', 'CANCELLED'],
+                default => [],
+            };
+        }
+
+        return array_values(array_diff(self::NEXT[$requirement->status] ?? [], ['WAITING_RESPONSE']));
+    }
+
+    public function completeResponse(Requirement $requirement, string $note, int $userId): void
+    {
+        DB::transaction(function () use ($requirement, $note, $userId) {
+            $requirement = Requirement::query()->lockForUpdate()->findOrFail($requirement->id);
+            if ($requirement->kind !== 'PROJECT_RESPONSE' || $requirement->status !== 'WAITING_RESPONSE') {
+                throw ValidationException::withMessages(['status' => 'La respuesta no está pendiente.']);
+            }
+            if ($requirement->approvals()->where('status', 'PENDING')->exists()) {
+                throw ValidationException::withMessages(['approval' => 'Hay una aprobación pendiente.']);
+            }
+            $requirement->update([
+                'response_note' => SensitiveText::clean($note, 4000),
+                'responded_at' => now(),
+                'responded_by_user_id' => $userId,
+                'status' => 'COMPLETED',
+            ]);
+            $this->event($requirement, 'response.recorded', 'user', 'WAITING_RESPONSE', 'COMPLETED', userId: $userId);
+        });
     }
 
     public function queue(DevelopmentTask $task, int $userId): void

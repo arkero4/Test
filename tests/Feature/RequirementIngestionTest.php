@@ -64,6 +64,25 @@ class RequirementIngestionTest extends TestCase
         $this->assertSame(0, Requirement::findOrFail($id)->tasks()->count());
     }
 
+    public function test_retry_uses_stable_reference_even_if_project_was_deactivated_and_rejects_foreign_collisions(): void
+    {
+        $project = Project::factory()->create(['slug' => 'crm-nutrisco']);
+        $token = $this->token();
+        $payload = $this->payload() + ['project_slug' => $project->slug];
+        $id = $this->withToken($token)->postJson('/api/v1/requirements', $payload)->assertCreated()->json('id');
+        $project->update(['status' => 'INACTIVE']);
+
+        $this->withToken($token)->postJson('/api/v1/requirements', [
+            'source' => $payload['source'], 'external_reference' => $payload['external_reference'],
+        ])->assertOk()->assertJsonPath('id', $id)->assertJsonPath('created', false);
+
+        $otherToken = 'dvo_ing_'.str_repeat('b', 64);
+        IngestionClient::create(['slug' => 'other', 'name' => 'Other', 'token_hash' => hash('sha256', $otherToken)]);
+        $this->withToken($otherToken)->postJson('/api/v1/requirements', $payload)->assertStatus(409);
+        $this->assertDatabaseCount('requirements', 1);
+        $this->assertDatabaseCount('requirement_events', 1);
+    }
+
     public function test_sources_are_extensible_and_unknown_projects_are_rejected(): void
     {
         $token = $this->token();
@@ -73,6 +92,23 @@ class RequirementIngestionTest extends TestCase
         $payload = array_replace($this->payload(), ['source' => 'slack', 'external_reference' => 'workspace:channel:123']);
         $this->withToken($token)->postJson('/api/v1/requirements', $payload)->assertCreated();
         $this->assertDatabaseHas('requirements', ['source' => 'slack', 'external_reference' => 'workspace:channel:123', 'project_id' => null]);
+    }
+
+    public function test_project_email_requiring_only_a_response_can_be_recorded_without_a_task(): void
+    {
+        $token = $this->token();
+        $payload = array_replace($this->payload(), [
+            'external_reference' => 'gmail:jaime.fuentes@tecnich.cl:reply-456',
+            'kind' => 'PROJECT_RESPONSE',
+            'requires_approval' => false,
+        ]);
+
+        $response = $this->withToken($token)->postJson('/api/v1/requirements', $payload)
+            ->assertCreated()->assertJsonPath('status', 'RECEIVED');
+        $requirement = Requirement::findOrFail($response->json('id'));
+        $this->assertSame('PROJECT_RESPONSE', $requirement->kind);
+        $this->assertTrue($requirement->requires_approval);
+        $this->assertSame(0, $requirement->tasks()->count());
     }
 
     public function test_token_command_rotates_and_revokes_access(): void
