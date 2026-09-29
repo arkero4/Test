@@ -18,3 +18,6 @@ Route::middleware('worker.auth')->group(function () {
 
 Route::post('/v1/requirements', [RequirementIngestionController::class, 'store'])
     ->middleware(['ingestion.auth', 'throttle:60,1']);
+
+Route::post('/mcp', \App\Http\Controllers\Api\WorkMcpController::class)
+    ->middleware(['ingestion.auth', 'throttle:60,1']);
