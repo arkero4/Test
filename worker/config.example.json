@@ -1,0 +1,14 @@
+{
+  "server": "https://orchestrator.example.test",
+  "worker_uuid": "00000000-0000-0000-0000-000000000000",
+  "token_file": "/private/path/worker.token",
+  "poll_seconds": 20,
+  "job_timeout_seconds": 3600,
+  "projects": {
+    "example-project": {
+      "path": "/private/path/to/development-checkout",
+      "environment": "development",
+      "allowed_test_commands": ["php artisan test"]
+    }
+  }
+}
