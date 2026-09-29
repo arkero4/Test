@@ -56,7 +56,7 @@ Confirm created=true or created=false and retain the returned requirement ID. Do
 
 ## Validation status
 
-Feature tests are supplied. Run them in a PHP 8.3+ environment with the project's Composer dependencies before deployment. This authoring environment has no PHP/Composer and no server access; production connectivity and hosted Work registration remain unverified.
+GitHub Actions validated the MCP feature tests and existing REST ingestion regression tests on PHP 8.3: 9 tests passed, 61 assertions. No live production data or real credentials were used. This authoring environment has no server access; production connectivity and hosted Work registration remain unverified.
 
 References:
 - https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
