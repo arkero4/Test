@@ -2,11 +2,11 @@
 
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\ExecutionController;
 use App\Http\Controllers\Web\ProjectController;
 use App\Http\Controllers\Web\RequirementController;
 use App\Http\Controllers\Web\TaskController;
 use App\Http\Controllers\Web\WorkerController;
-use App\Models\Execution;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [AuthController::class, 'form'])->name('login');
@@ -29,7 +29,5 @@ Route::middleware('auth')->group(function () {
     Route::post('/requirements/{requirement}/tasks', [TaskController::class, 'store'])->name('tasks.store');
     Route::post('/tasks/{task}/queue', [TaskController::class, 'queue'])->name('tasks.queue');
     Route::post('/tasks/{task}/retry', [TaskController::class, 'retry'])->name('tasks.retry');
-    Route::get('/executions/{execution}', function (Execution $execution) {
-        return view('executions.show', ['execution' => $execution->load('task.requirement', 'worker', 'logs', 'agentRuns')]);
-    })->name('executions.show');
+    Route::get('/executions/{execution}', [ExecutionController::class, 'show'])->name('executions.show');
 });
