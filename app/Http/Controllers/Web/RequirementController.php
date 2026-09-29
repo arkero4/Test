@@ -37,7 +37,7 @@ class RequirementController extends Controller
     {
         return SensitiveText::cleanArray($request->validate([
             'kind' => ['required', Rule::in(['DEVELOPMENT', 'SYSTEM_IMPROVEMENT'])],
-            'source' => ['required', Rule::in(['email', 'asana', 'dot', 'manual', 'api', 'agent', 'system'])],
+            'source' => ['required', 'string', 'max:64', 'regex:/\A[a-z][a-z0-9_-]{0,63}\z/'],
             'external_reference' => ['nullable', 'string', 'max:255'], 'sender' => ['nullable', 'string', 'max:255'],
             'subject' => ['required', 'string', 'max:255'], 'original_content' => ['required', 'string'],
             'summary' => ['nullable', 'string'], 'context' => ['nullable', 'string'],

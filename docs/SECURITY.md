@@ -2,6 +2,7 @@
 
 - Panel con autenticación de sesión Laravel, CSRF y limitación de intentos de login; sin registro público. Crear administrador solo por Artisan.
 - Cada worker tiene UUID y token independiente de 256 bits, visible una vez. La base almacena únicamente SHA-256. Rotar token invalida el anterior; deshabilitar worker lo revoca.
+- Los clientes de ingreso, como Dot, usan tokens independientes de los workers y del panel. El token solo permite `POST /api/v1/requirements`, se almacena como hash, se puede rotar o revocar y no habilita transiciones, tareas ni ejecuciones.
 - Un worker solo recibe trabajos de proyectos asociados en `worker_project`. La aceptación comprueba de nuevo el permiso en una transacción.
 - Las rutas reales, credenciales legacy y bases de datos quedan en el worker. Configuración local y token fuera de Git, con permisos restrictivos.
 - `technical_analysis` usa `codex exec --sandbox read-only`. El worker exige checkout limpio y verifica que siga limpio; el servidor rechaza reportes de archivos modificados.

@@ -4,7 +4,9 @@ Centro de operaciones para requerimientos, proyectos, workers y agentes de desar
 
 ## Estado del MVP
 
-Laravel 13, PHP 8.3+, autenticación de panel, CRUD de proyectos y workers, memoria técnica por proyecto, requerimientos, planes, subtareas, ejecuciones, timeline, aprobaciones, API de workers y worker Python de referencia. El dashboard se actualiza cada 20 segundos. Gmail, Asana, Dot, memoria vectorial y despliegues automáticos quedan fuera de esta versión.
+Laravel 13, PHP 8.3+, autenticación de panel, CRUD de proyectos y workers, memoria técnica por proyecto, requerimientos, planes, subtareas, ejecuciones, timeline, aprobaciones, API de workers y worker Python de referencia. El dashboard se actualiza cada 20 segundos. La lectura de Gmail/Asana por Dot, la coordinación automática, la memoria vectorial y los despliegues automáticos quedan fuera de esta versión.
+
+Dot puede enviar requerimientos mediante una API de ingreso independiente, sin acceso a ejecución ni aprobación. La lectura de Gmail, Asana y otras fuentes sigue a cargo de Dot, fuera de este repositorio.
 
 ## Inicio local
 
@@ -40,6 +42,7 @@ El comando de administrador pide una contraseña de al menos 12 caracteres por c
 - [Memoria de proyecto](docs/PROJECT_CONTEXT.md)
 - [Mejora del sistema](docs/SELF_IMPROVEMENT.md)
 - [Despliegue](docs/DEPLOYMENT.md)
+- [API de ingreso para Dot](docs/DOT_INGESTION_API.md)
 
 ## Seguridad
 
