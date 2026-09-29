@@ -10,4 +10,4 @@
 - Campos de entrada y logs aplican redacción básica de tokens, contraseñas y Bearer. Esta redacción es defensa adicional: nunca se deben introducir secretos en requerimientos, contexto ni resultados. No es un detector perfecto de secretos.
 - Revisar HTTPS, `APP_DEBUG=false`, backups, permisos de archivos, rotación de tokens y monitoreo antes de exponer públicamente el servidor.
 
-El MVP no proporciona aislamiento de contenedor por tarea ni aprobación interactiva de cada comando generado por Codex. El operador del worker debe mapear únicamente checkouts de desarrollo sin acceso a producción. Tampoco recupera automáticamente ejecuciones interrumpidas: requieren revisión y reintento humano.
+El MVP no proporciona aislamiento de contenedor por tarea ni aprobación interactiva de cada comando generado por Codex. El operador del worker debe mapear únicamente checkouts de desarrollo sin acceso a producción. La cancelación de un trabajo en curso se transmite por heartbeat (hasta 20 segundos con la configuración de referencia). Tampoco recupera automáticamente ejecuciones interrumpidas: requieren revisión y reintento humano.

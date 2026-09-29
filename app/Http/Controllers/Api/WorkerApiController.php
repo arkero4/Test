@@ -33,8 +33,10 @@ class WorkerApiController extends Controller
     {
         $worker = $this->worker($request);
         $worker->update(['last_heartbeat_at' => now(), 'status' => $worker->executions()->where('status', 'RUNNING')->exists() ? 'BUSY' : 'ONLINE']);
+        $cancelRequested = $worker->executions()->where('status', 'RUNNING')
+            ->whereHas('task.requirement', fn ($query) => $query->where('status', 'CANCELLED'))->exists();
 
-        return response()->json(['status' => $worker->status, 'server_time' => now()->toIso8601String()]);
+        return response()->json(['status' => $worker->status, 'server_time' => now()->toIso8601String(), 'cancel_requested' => $cancelRequested]);
     }
 
     public function next(Request $request, Lifecycle $lifecycle)
@@ -46,7 +48,10 @@ class WorkerApiController extends Controller
         if ($worker->executions()->where('status', 'RUNNING')->exists()) {
             return response()->json(['job' => null]);
         }
-        $candidates = DevelopmentTask::with('requirement', 'project')->where('status', 'QUEUED')->orderByRaw("CASE priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END")->orderBy('created_at')->limit(100)->get();
+        $projectIds = $worker->projects()->pluck('projects.id');
+        $candidates = DevelopmentTask::where('status', 'QUEUED')->whereIn('project_id', $projectIds)
+            ->orderByRaw("CASE priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END")
+            ->orderBy('created_at')->cursor();
         $task = $candidates->first(fn ($candidate) => $lifecycle->eligible($candidate, $worker));
 
         return response()->json(['job' => $task ? ['id' => $task->id, 'type' => $task->type, 'title' => $task->title, 'project_slug' => $task->project->slug, 'requires_approval' => $task->requires_approval] : null]);

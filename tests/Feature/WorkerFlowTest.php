@@ -91,6 +91,16 @@ class WorkerFlowTest extends TestCase
         $this->assertDatabaseMissing('executions', ['id' => $response->json('execution_id'), 'stdout' => 'Authorization: Bearer secret-token-value']);
     }
 
+    public function test_heartbeat_requests_stop_after_requirement_is_cancelled(): void
+    {
+        $data = $this->scenario('QUEUED', 'implementation');
+        $this->withToken($data['token'])->postJson("/api/jobs/{$data['task']->id}/accept")->assertOk();
+        $data['requirement']->update(['status' => 'CANCELLED']);
+
+        $this->withToken($data['token'])->postJson('/api/workers/heartbeat')
+            ->assertOk()->assertJsonPath('cancel_requested', true);
+    }
+
     public function test_approval_is_required_before_completion(): void
     {
         $requirement = Requirement::factory()->create(['status' => 'WAITING_APPROVAL', 'requires_approval' => true]);

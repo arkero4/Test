@@ -94,7 +94,11 @@ def run_job(config, token, job):
                     break
                 except subprocess.TimeoutExpired:
                     input_text = None
-                    call(config, token, "POST", "/workers/heartbeat", {})
+                    heartbeat = call(config, token, "POST", "/workers/heartbeat", {})
+                    if heartbeat.get("cancel_requested"):
+                        process.kill()
+                        process.communicate()
+                        raise RuntimeError("Requirement was cancelled")
                     if time.monotonic() >= deadline:
                         process.kill()
                         process.communicate()

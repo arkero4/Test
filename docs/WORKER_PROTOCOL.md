@@ -18,4 +18,4 @@ Todas las rutas tienen prefijo `/api`, usan HTTPS y `Authorization: Bearer <toke
 
 `complete` / `fail` reciben `summary` y opcionalmente `stdout`, `stderr`, `modified_files`, `branch`, `commit`, `tests`, `result` y `error`. El diagnóstico técnico estructurado va en `result`. El servidor rechaza el avance exitoso de un análisis que reporta archivos modificados. Los logs y campos textuales sensibles se redactan antes de guardar y tienen límite de tamaño.
 
-El worker debe mantener heartbeat durante trabajos largos. `next` es una consulta, y solo `accept` reclama el trabajo. El servidor vuelve a comprobar proyecto permitido, fase, dependencias, aprobación pendiente, capacidad del worker, heartbeat, límite global y paralelismo durante la aceptación.
+El worker debe mantener heartbeat durante trabajos largos. La respuesta incluye `cancel_requested`; el worker de referencia termina Codex si el requerimiento fue cancelado. `next` es una consulta, y solo `accept` reclama el trabajo. El servidor vuelve a comprobar proyecto permitido, fase, dependencias, aprobación pendiente, capacidad del worker, heartbeat, límite global y paralelismo durante la aceptación.
