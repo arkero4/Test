@@ -1,0 +1,5 @@
+@extends('layouts.app')
+@section('breadcrumb', 'Workers')
+@section('content')
+<div class="page-heading"><div><p class="eyebrow">INFRAESTRUCTURA</p><h1>Workers</h1><p class="muted">Máquinas autorizadas para ejecutar tareas.</p></div><a class="button primary" href="{{ route('workers.create') }}">+ Nuevo worker</a></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>UUID</th><th>Estado</th><th>Proyectos</th><th>Heartbeat</th><th></th></tr></thead><tbody>@forelse($workers as $worker)<tr><td><b>{{ $worker->name }}</b></td><td>{{ $worker->uuid }}</td><td><span class="badge {{ strtolower($worker->status) }}">{{ $worker->status }}</span></td><td>{{ $worker->projects->pluck('slug')->join(', ') ?: 'Ninguno' }}</td><td>{{ $worker->last_heartbeat_at?->diffForHumans() ?? 'Nunca' }}</td><td><a href="{{ route('workers.edit', $worker) }}">Editar →</a></td></tr>@empty<tr><td colspan="6" class="empty">Sin workers.</td></tr>@endforelse</tbody></table></div></section>
+@endsection

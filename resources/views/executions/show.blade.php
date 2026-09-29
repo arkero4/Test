@@ -1,0 +1,9 @@
+@extends('layouts.app')
+@section('breadcrumb', 'Ejecuciones / #'.$execution->id)
+@section('content')
+<div class="page-heading"><div><p class="eyebrow">EJECUCIÓN #{{ $execution->id }}</p><h1>{{ $execution->task?->title }}</h1><p class="muted"><a href="{{ route('requirements.show',$execution->task->requirement_id) }}">Requerimiento #{{ $execution->task->requirement_id }}</a> · {{ $execution->worker?->name }} · {{ $execution->agent }}</p></div><span class="badge {{ strtolower($execution->status) }}">{{ $execution->status }}</span></div><div class="detail-stack"><section class="panel"><div class="panel-head"><h2>Resultado</h2></div><div class="panel-body"><dl class="kv"><dt>Inicio</dt><dd>{{ $execution->started_at?->format('d/m/Y H:i:s') }}</dd><dt>Término</dt><dd>{{ $execution->finished_at?->format('d/m/Y H:i:s') ?? 'En curso' }}</dd><dt>Branch / Commit</dt><dd>{{ $execution->branch ?? '—' }} / {{ $execution->commit ?? '—' }}</dd><dt>Archivos</dt><dd>{{ implode(', ', $execution->modified_files ?? []) ?: 'Ninguno' }}</dd></dl><p class="prose">{{ $execution->summary }}</p>@if($execution->error)<div class="alert error">{{ $execution->error }}</div>@endif
+@if($execution->tests)<h3>Pruebas</h3><div class="code">{{ json_encode($execution->tests, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</div>@endif
+@if($execution->result)<h3>Resultado estructurado</h3><div class="code">{{ json_encode($execution->result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</div>@endif</div></section><section class="panel"><div class="panel-head"><h2>Progreso y logs</h2></div><div class="panel-body">@foreach($execution->logs as $log)<p><small>{{ $log->created_at->format('H:i:s') }} · {{ $log->level }}</small><br>{{ $log->message }}</p>@endforeach
+@if($execution->stdout)<h3>stdout</h3><div class="code">{{ $execution->stdout }}</div>@endif
+@if($execution->stderr)<h3>stderr</h3><div class="code">{{ $execution->stderr }}</div>@endif</div></section></div>
+@endsection
