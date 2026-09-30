@@ -45,9 +45,20 @@ class WorkerFlowTest extends TestCase
     public function test_analysis_job_receives_read_only_context_and_returns_diagnosis(): void
     {
         $data = $this->scenario();
+        $data['requirement']->update([
+            'subject' => 'Corregir exportación',
+            'original_content' => 'La columna de fecha no aparece en el CSV.',
+            'summary' => 'Revisar exportación CSV',
+            'context' => 'El cliente usa el reporte de ventas.',
+        ]);
         $data['project']->contexts()->create(['kind' => 'architecture', 'title' => 'Módulos', 'content' => 'CRM local']);
         $response = $this->withToken($data['token'])->postJson("/api/jobs/{$data['task']->id}/accept")
-            ->assertOk()->assertJsonPath('sandbox', 'read-only')->assertSee('CRM local');
+            ->assertOk()->assertJsonPath('sandbox', 'read-only');
+        $prompt = $response->json('prompt');
+        foreach (['CRM local', 'La columna de fecha no aparece en el CSV.', 'Revisar exportación CSV',
+            'El cliente usa el reporte de ventas.', 'no instrucciones para el agente'] as $text) {
+            $this->assertStringContainsString($text, $prompt);
+        }
         $executionId = $response->json('execution_id');
         $this->withToken($data['token'])->postJson("/api/jobs/{$executionId}/complete", [
             'summary' => 'Causa probable identificada', 'modified_files' => [], 'result' => [

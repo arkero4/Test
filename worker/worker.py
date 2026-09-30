@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -140,8 +141,12 @@ def run_job(config, token, job):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--once", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--once", action="store_true", help="Run one polling cycle; may execute a queued job")
+    mode.add_argument("--healthcheck", action="store_true", help="Validate configuration and connect without fetching jobs")
     args = parser.parse_args()
+    if sys.version_info < (3, 10):
+        raise RuntimeError("Python 3.10 or newer is required")
     config_path = Path(args.config).expanduser().resolve(strict=True)
     config = json.loads(config_path.read_text())
     token_path = Path(config["token_file"]).expanduser().resolve(strict=True)
@@ -150,7 +155,15 @@ def main():
     token = token_path.read_text().strip()
     if len(token) < 32:
         raise RuntimeError("Worker token is invalid")
+    for slug, project in config.get("projects", {}).items():
+        safe_project(config, slug)
+        if not shutil.which(project.get("codex_binary", "codex")):
+            raise RuntimeError(f"Codex binary is unavailable for project {slug}")
     call(config, token, "POST", "/workers/register", {"uuid": config["worker_uuid"], "agent_version": "reference-1", "environment": {"platform": sys.platform}})
+    if args.healthcheck:
+        call(config, token, "POST", "/workers/heartbeat", {})
+        print(f"Worker connected; {len(config.get('projects', {}))} project mapping(s) validated; no jobs fetched")
+        return
     while True:
         try:
             call(config, token, "POST", "/workers/heartbeat", {})
