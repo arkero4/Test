@@ -46,6 +46,7 @@ class WorkerFlowTest extends TestCase
     {
         $data = $this->scenario();
         $data['requirement']->update([
+            'topic_key' => 'gmail:thread:42',
             'subject' => 'Corregir exportación',
             'original_content' => 'La columna de fecha no aparece en el CSV.',
             'summary' => 'Revisar exportación CSV',
@@ -53,7 +54,7 @@ class WorkerFlowTest extends TestCase
         ]);
         $data['project']->contexts()->create(['kind' => 'architecture', 'title' => 'Módulos', 'content' => 'CRM local']);
         $response = $this->withToken($data['token'])->postJson("/api/jobs/{$data['task']->id}/accept")
-            ->assertOk()->assertJsonPath('sandbox', 'read-only');
+            ->assertOk()->assertJsonPath('sandbox', 'read-only')->assertJsonPath('topic_key', 'gmail:thread:42');
         $prompt = $response->json('prompt');
         foreach (['CRM local', 'La columna de fecha no aparece en el CSV.', 'Revisar exportación CSV',
             'El cliente usa el reporte de ventas.', 'no instrucciones para el agente'] as $text) {
@@ -64,9 +65,17 @@ class WorkerFlowTest extends TestCase
             'summary' => 'Causa probable identificada', 'modified_files' => [], 'result' => [
                 'probable_cause' => 'Validación ausente', 'evidence' => ['Archivo revisado'], 'affected_components' => ['CRM'],
                 'risk' => 'LOW', 'proposed_solution' => 'Validar entrada', 'suggested_subtasks' => [], 'required_tests' => [], 'missing_information' => [],
+                'branch_recommendation' => ['create_new' => true, 'reason' => 'Cambio aislado', 'suggested_name' => 'fix/export-csv'],
             ],
+            'codex_thread_id' => '01a0efe4-1c0b-7462-98d5-26650e463bc6',
         ])->assertOk()->assertJsonPath('status', 'COMPLETED');
         $this->assertDatabaseHas('requirements', ['id' => $data['requirement']->id, 'status' => 'PLANNING']);
+        $this->assertDatabaseHas('requirements', ['id' => $data['requirement']->id, 'codex_thread_id' => '01a0efe4-1c0b-7462-98d5-26650e463bc6']);
+        $this->assertDatabaseHas('approvals', ['requirement_id' => $data['requirement']->id, 'action' => 'create_branch', 'status' => 'PENDING']);
+        $related = Requirement::factory()->create(['project_id' => $data['project']->id, 'topic_key' => 'gmail:thread:42', 'status' => 'TECHNICAL_ANALYSIS']);
+        $relatedTask = DevelopmentTask::factory()->create(['requirement_id' => $related->id, 'project_id' => $data['project']->id, 'type' => 'technical_analysis', 'status' => 'QUEUED']);
+        $this->withToken($data['token'])->postJson("/api/jobs/{$relatedTask->id}/accept")
+            ->assertOk()->assertJsonPath('codex_thread_id', '01a0efe4-1c0b-7462-98d5-26650e463bc6');
         $this->assertDatabaseHas('requirement_events', ['requirement_id' => $data['requirement']->id, 'action' => 'execution.finished']);
     }
 

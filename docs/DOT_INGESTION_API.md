@@ -29,6 +29,7 @@ curl -X POST 'https://orquestador.jet-erp.cl/api/v1/requirements' \
     "original_content": "El CSV exportado tiene una columna incorrecta.",
     "summary": "Revisar columna del CSV",
     "project_slug": "crm-nutrisco",
+    "topic_key": "gmail:cuenta@example.com:hilo-456",
     "classification_confidence": 0.82,
     "priority": "NORMAL",
     "risk": "UNKNOWN",
@@ -39,7 +40,9 @@ curl -X POST 'https://orquestador.jet-erp.cl/api/v1/requirements' \
 
 `source`, `external_reference`, `subject` y `original_content` son obligatorios. `source` es un identificador en minúsculas de hasta 64 caracteres (`email`, `asana`, `slack`, etc.). `external_reference` debe ser estable y estar cualificada por cuenta o espacio de origen para evitar colisiones; la pareja `(source, external_reference)` es única. `project_slug` es opcional: si Dot no está seguro del proyecto, debe omitirlo para dejarlo por definir. Un slug desconocido o inactivo produce `422`.
 
-Opcionales: `sender`, `summary`, `context`, `project_slug`, `classification_confidence` (0 a 1), `kind` (`DEVELOPMENT`, `PROJECT_RESPONSE` o `SYSTEM_IMPROVEMENT`), `priority` (`LOW`, `NORMAL`, `HIGH`, `URGENT`), `risk` (`UNKNOWN`, `LOW`, `MEDIUM`, `HIGH`), `requires_approval` y `received_at` (fecha ISO 8601). `PROJECT_RESPONSE` representa consultas o seguimiento de un proyecto que requieren respuesta, aunque no haya código que cambiar; Dot debe marcar `requires_approval: true` para mantener la respuesta bajo revisión humana. El contenido original y el contexto tienen un máximo de 65.536 caracteres; el resumen, 8.192. Dot debe enviar texto útil para el análisis, sin credenciales ni adjuntos binarios.
+Opcionales: `sender`, `summary`, `context`, `project_slug`, `topic_key`, `classification_confidence` (0 a 1), `kind` (`DEVELOPMENT`, `PROJECT_RESPONSE` o `SYSTEM_IMPROVEMENT`), `priority` (`LOW`, `NORMAL`, `HIGH`, `URGENT`), `risk` (`UNKNOWN`, `LOW`, `MEDIUM`, `HIGH`), `requires_approval` y `received_at` (fecha ISO 8601). `PROJECT_RESPONSE` representa consultas o seguimiento de un proyecto que requieren respuesta, aunque no haya código que cambiar; Dot debe marcar `requires_approval: true` para mantener la respuesta bajo revisión humana. El contenido original y el contexto tienen un máximo de 65.536 caracteres; el resumen, 8.192. Dot debe enviar texto útil para el análisis, sin credenciales ni adjuntos binarios.
+
+`topic_key` agrupa requerimientos del mismo tema dentro de un proyecto. Para Gmail, usa una clave estable por hilo y cuenta; no la confundas con `external_reference`, que identifica cada mensaje. Si falta, cada requerimiento tendrá su propio chat Codex.
 
 Primera entrega: `201 Created` con `created: true`. Reintento del mismo cliente de ingesta con la misma pareja `(source, external_reference)`: `200 OK` con `created: false` y el mismo ID; no modifica el requerimiento existente ni duplica su evento, incluso si el proyecto se desactiva después. El reintento puede enviar solo `source` y `external_reference`. Si esa referencia pertenece a otro cliente o a un ingreso manual, responde `409`. La respuesta incluye `id`, `status`, `source`, `external_reference` y `url` del panel. Otros resultados: `401` sin credencial válida, `422` por validación y `429` al superar 60 solicitudes por minuto desde una IP.
 

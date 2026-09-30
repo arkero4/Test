@@ -125,12 +125,13 @@ class WorkMcpController extends Controller
     {
         $properties = [];
         foreach (['source' => 64, 'external_reference' => 255, 'subject' => 255, 'original_content' => 65536,
-            'sender' => 255, 'summary' => 8192, 'context' => 65536, 'project_slug' => 255] as $field => $limit) {
+            'sender' => 255, 'summary' => 8192, 'context' => 65536, 'project_slug' => 255, 'topic_key' => 255] as $field => $limit) {
             $properties[$field] = ['type' => 'string', 'maxLength' => $limit];
         }
         $properties['source']['pattern'] = '^[a-z][a-z0-9_-]{0,63}$';
         $properties['external_reference']['description'] = 'Stable account-qualified source message ID. Reuse for retries.';
         $properties['project_slug']['description'] = 'Known active project slug only; omit if unknown.';
+        $properties['topic_key']['description'] = 'Stable account-qualified topic/thread ID. Reuse across related messages in the same project.';
         $properties['received_at'] = ['type' => 'string', 'format' => 'date-time'];
         $properties['classification_confidence'] = ['type' => 'number', 'minimum' => 0, 'maximum' => 1];
         $properties['requires_approval'] = ['type' => 'boolean'];

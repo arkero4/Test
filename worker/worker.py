@@ -24,8 +24,11 @@ ANALYSIS_SCHEMA = {
         "suggested_subtasks": {"type": "array", "items": {"type": "string"}},
         "required_tests": {"type": "array", "items": {"type": "string"}},
         "missing_information": {"type": "array", "items": {"type": "string"}},
+        "branch_recommendation": {"type": "object", "properties": {
+            "create_new": {"type": "boolean"}, "reason": {"type": "string"}, "suggested_name": {"type": "string"},
+        }, "required": ["create_new", "reason", "suggested_name"], "additionalProperties": False},
     },
-    "required": ["probable_cause", "evidence", "affected_components", "risk", "proposed_solution", "suggested_subtasks", "required_tests", "missing_information"],
+    "required": ["probable_cause", "evidence", "affected_components", "risk", "proposed_solution", "suggested_subtasks", "required_tests", "missing_information", "branch_recommendation"],
     "additionalProperties": False,
 }
 
@@ -46,6 +49,31 @@ def git(path, *args):
     return subprocess.run(["git", "-C", str(path), *args], capture_output=True, text=True, check=True).stdout.strip()
 
 
+def codex_thread(stdout, expected=None):
+    ids = []
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "thread.started":
+            ids.append(event.get("thread_id"))
+    if len(ids) != 1 or not ids[0] or (expected and ids[0] != expected):
+        raise RuntimeError("Codex did not confirm the expected persisted chat")
+    return ids[0]
+
+
+def verify_thread_project(thread_id, path):
+    sessions = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "sessions"
+    matches = list(sessions.rglob(f"*{thread_id}.jsonl"))
+    if len(matches) != 1:
+        raise RuntimeError("Existing Codex chat is not available on this Mac")
+    with matches[0].open() as stream:
+        metadata = json.loads(stream.readline())
+    if metadata.get("type") != "session_meta" or Path(metadata.get("payload", {}).get("cwd", "")).resolve() != path:
+        raise RuntimeError("Existing Codex chat belongs to a different project directory")
+
+
 def safe_project(config, slug):
     project = config.get("projects", {}).get(slug)
     if not project:
@@ -61,6 +89,26 @@ def safe_project(config, slug):
     return path, project
 
 
+def prepare_branch(path, accepted):
+    branch = accepted.get("branch_recommendation") or {}
+    if not branch.get("create_new"):
+        return
+    if accepted.get("branch_approval") == "REJECTED":
+        return
+    if accepted.get("branch_approval") != "APPROVED":
+        raise RuntimeError("Branch creation awaits approval in the cloud Orchestrator")
+    name = branch.get("suggested_name", "")
+    valid = subprocess.run(["git", "check-ref-format", "--branch", name], capture_output=True)
+    if valid.returncode != 0 or name in ("main", "master", "production", "prod"):
+        raise RuntimeError("Approved branch name is invalid or protected")
+    if git(path, "branch", "--show-current") == name:
+        return
+    if git(path, "status", "--porcelain=v1", "-uall"):
+        raise RuntimeError("Cannot change branches with uncommitted files")
+    exists = subprocess.run(["git", "-C", str(path), "show-ref", "--verify", "--quiet", "refs/heads/" + name]).returncode == 0
+    git(path, "switch", name if exists else "-c", *([] if exists else [name]))
+
+
 def run_job(config, token, job):
     path, local = safe_project(config, job["project_slug"])
     accepted = call(config, token, "POST", f"/jobs/{job['id']}/accept", {})
@@ -73,17 +121,31 @@ def run_job(config, token, job):
         analysis = accepted["type"] == "technical_analysis"
         if accepted["sandbox"] != ("read-only" if analysis else "workspace-write"):
             raise RuntimeError("Invalid sandbox policy")
+        if not analysis:
+            prepare_branch(path, accepted)
         before = git(path, "status", "--porcelain=v1", "-uall")
         if analysis and before:
             raise RuntimeError("Analysis requires a clean checkout")
         with tempfile.TemporaryDirectory(prefix="dev-orchestrator-") as temp:
             output_path = Path(temp) / "last.txt"
-            command = [local.get("codex_binary", "codex"), "exec", "--ephemeral", "--sandbox", accepted["sandbox"], "--output-last-message", str(output_path), "-C", str(path), "-"]
+            existing_thread = accepted.get("codex_thread_id")
+            if existing_thread:
+                verify_thread_project(existing_thread, path)
+                command = [local.get("codex_binary", "codex"), "exec", "resume", "--json", "-c", f'sandbox_mode="{accepted["sandbox"]}"',
+                           "--output-last-message", str(output_path), existing_thread, "-"]
+            else:
+                command = [local.get("codex_binary", "codex"), "exec", "--json", "--sandbox", accepted["sandbox"],
+                           "--output-last-message", str(output_path), "-C", str(path), "-"]
             if analysis:
                 schema_path = Path(temp) / "analysis.schema.json"
                 schema_path.write_text(json.dumps(ANALYSIS_SCHEMA))
-                command[2:2] = ["--output-schema", str(schema_path)]
+                if existing_thread:
+                    command[3:3] = ["--output-schema", str(schema_path)]
+                else:
+                    command[2:2] = ["--output-schema", str(schema_path)]
             prompt = ("Never deploy, change production, run migrations against production, delete data, or use real secrets. "
+                      "Never create or switch a Git branch. For technical analysis, recommend whether a new branch is needed, "
+                      "why, and a suggested name; branch creation needs approval in the cloud Orchestrator. "
                       "If approval is needed, explain and stop.\n\n" + accepted["prompt"])
             process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                        text=True, cwd=path)
@@ -105,6 +167,7 @@ def run_job(config, token, job):
                         process.communicate()
                         raise RuntimeError("Codex job timed out")
             result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+            thread_id = codex_thread(result.stdout, existing_thread)
             summary = output_path.read_text(errors="replace") if output_path.exists() else "Codex did not produce a final message"
         after = git(path, "status", "--porcelain=v1", "-uall")
         if analysis and after != before:
@@ -120,7 +183,8 @@ def run_job(config, token, job):
                 test = subprocess.run(shlex.split(test_command), cwd=path, capture_output=True, text=True, timeout=600)
                 tests.append({"command": test_command, "status": "PASSED" if test.returncode == 0 else "FAILED", "output": (test.stdout + test.stderr)[-3000:]})
         payload = {"summary": summary[:4000], "stdout": result.stdout[-65536:], "stderr": result.stderr[-65536:],
-                   "modified_files": modified, "branch": git(path, "branch", "--show-current"), "commit": git(path, "rev-parse", "HEAD"), "tests": tests}
+                   "modified_files": modified, "branch": git(path, "branch", "--show-current"), "commit": git(path, "rev-parse", "HEAD"),
+                   "codex_thread_id": thread_id, "tests": tests}
         if analysis and result.returncode == 0:
             payload["result"] = json.loads(summary)
         success = result.returncode == 0 and all(test["status"] == "PASSED" for test in tests)

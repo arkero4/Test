@@ -61,9 +61,22 @@ class WorkerApiController extends Controller
     {
         $worker = $this->worker($request);
         $execution = $lifecycle->accept($task, $worker);
+        $requirement = $task->requirement;
+        $topicKey = $requirement->topic_key ?: 'requirement:'.$requirement->id;
+        $threadId = $requirement->codex_thread_id;
+        if (! $threadId && $requirement->topic_key) {
+            $threadId = $requirement->newQuery()->where('project_id', $task->project_id)
+                ->where('topic_key', $topicKey)->whereNotNull('codex_thread_id')
+                ->latest('id')->value('codex_thread_id');
+        }
+        $branch = $requirement->technical_analysis['branch_recommendation'] ?? null;
+        $branchApproval = $branch && ($branch['create_new'] ?? false)
+            ? $requirement->approvals()->where('action', 'create_branch')->latest('id')->value('status') : null;
 
         return response()->json(['execution_id' => $execution->id, 'task_id' => $task->id, 'project_slug' => $task->project->slug,
             'type' => $task->type, 'prompt' => $execution->prompt, 'test_commands' => $task->type === 'technical_analysis' ? [] : ($task->project->test_commands ?? []),
+            'topic_key' => $topicKey, 'codex_thread_id' => $threadId,
+            'branch_recommendation' => $branch, 'branch_approval' => $branchApproval,
             'sandbox' => app(CodexLocalAgent::class)->sandboxFor($task)]);
     }
 
@@ -102,6 +115,7 @@ class WorkerApiController extends Controller
             'summary' => ['required', 'string', 'max:4000'], 'stdout' => ['nullable', 'string', 'max:65536'], 'stderr' => ['nullable', 'string', 'max:65536'],
             'modified_files' => ['nullable', 'array', 'max:500'], 'modified_files.*' => ['string', 'max:500'],
             'branch' => ['nullable', 'string', 'max:255'], 'commit' => ['nullable', 'string', 'max:100'], 'tests' => ['nullable', 'array'],
+            'codex_thread_id' => ['nullable', 'uuid'],
             'result' => ['nullable', 'array'], 'error' => ['nullable', 'string', 'max:4000'],
         ]);
     }

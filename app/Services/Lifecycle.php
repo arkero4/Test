@@ -213,16 +213,35 @@ class Lifecycle
                 throw ValidationException::withMessages(['execution' => 'Ejecución no activa de este worker.']);
             }
             $task = $execution->task;
+            $requirement = $task->requirement;
+            if (! empty($data['codex_thread_id'])) {
+                $existingThread = $requirement->codex_thread_id;
+                if (! $existingThread && $requirement->topic_key) {
+                    $existingThread = $requirement->newQuery()->where('project_id', $task->project_id)
+                        ->where('topic_key', $requirement->topic_key)->whereNotNull('codex_thread_id')
+                        ->latest('id')->value('codex_thread_id');
+                }
+                if ($existingThread && $existingThread !== $data['codex_thread_id']) {
+                    throw ValidationException::withMessages(['codex_thread_id' => 'El chat no coincide con el tema vinculado.']);
+                }
+                $requirement->update(['codex_thread_id' => $data['codex_thread_id']]);
+            }
             if ($task->type === 'technical_analysis' && ! empty($data['modified_files'])) {
                 $success = false;
                 $data['error'] = 'El análisis reportó archivos modificados.';
             }
             if ($task->type === 'technical_analysis' && $success) {
                 $diagnosis = $data['result'] ?? null;
-                foreach (['probable_cause', 'evidence', 'affected_components', 'risk', 'proposed_solution', 'suggested_subtasks', 'required_tests', 'missing_information'] as $field) {
+                foreach (['probable_cause', 'evidence', 'affected_components', 'risk', 'proposed_solution', 'suggested_subtasks', 'required_tests', 'missing_information', 'branch_recommendation'] as $field) {
                     if (! is_array($diagnosis) || ! array_key_exists($field, $diagnosis)) {
                         throw ValidationException::withMessages(['result' => 'El diagnóstico técnico estructurado está incompleto.']);
                     }
+                }
+                $branch = $diagnosis['branch_recommendation'];
+                if (! is_array($branch) || ! is_bool($branch['create_new'] ?? null)
+                    || ! is_string($branch['reason'] ?? null) || ! is_string($branch['suggested_name'] ?? null)
+                    || ($branch['create_new'] && $branch['suggested_name'] === '')) {
+                    throw ValidationException::withMessages(['result' => 'Falta la recomendación de rama y su motivo.']);
                 }
             }
             $status = $success ? 'COMPLETED' : 'FAILED';
@@ -239,10 +258,18 @@ class Lifecycle
             $execution->agentRuns()->where('status', 'RUNNING')->update(['status' => $status, 'finished_at' => now()]);
             $task->update(['status' => $status]);
             $worker->update(['status' => 'ONLINE']);
-            $requirement = $task->requirement;
             if ($task->type === 'technical_analysis' && $success) {
                 $requirement->update(['technical_analysis' => SensitiveText::cleanArray($data['result'] ?? ['summary' => $data['summary'] ?? ''])]);
                 $this->transition($requirement, 'PLANNING', 'worker');
+                if ($diagnosis['branch_recommendation']['create_new']) {
+                    $branch = $diagnosis['branch_recommendation'];
+                    $requirement->approvals()->create([
+                        'task_id' => $task->id, 'requested_by_worker_id' => $worker->id,
+                        'action' => 'create_branch',
+                        'reason' => SensitiveText::clean('Rama propuesta: '.$branch['suggested_name'].'. '.$branch['reason'], 4000),
+                    ]);
+                    $this->event($requirement, 'approval.requested', 'worker', details: ['action' => 'create_branch'], task: $task, worker: $worker);
+                }
             } elseif (! $success && in_array($requirement->status, ['TECHNICAL_ANALYSIS', 'IMPLEMENTING', 'TESTING', 'REVIEWING'], true)) {
                 $this->transition($requirement, 'FAILED', 'worker');
             } elseif ($success && $task->requires_approval && in_array($requirement->status, ['IMPLEMENTING', 'TESTING', 'REVIEWING'], true)) {

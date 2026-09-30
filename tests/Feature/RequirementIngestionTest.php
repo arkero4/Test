@@ -49,7 +49,7 @@ class RequirementIngestionTest extends TestCase
     {
         $project = Project::factory()->create(['slug' => 'crm-nutrisco']);
         $token = $this->token();
-        $payload = $this->payload() + ['project_slug' => $project->slug, 'classification_confidence' => 0.82];
+        $payload = $this->payload() + ['project_slug' => $project->slug, 'topic_key' => 'gmail:jaime.fuentes@tecnich.cl:thread-456', 'classification_confidence' => 0.82];
 
         $first = $this->withToken($token)->postJson('/api/v1/requirements', $payload)
             ->assertCreated()->assertJsonPath('created', true)->assertJsonPath('status', 'RECEIVED');
@@ -59,7 +59,7 @@ class RequirementIngestionTest extends TestCase
             ->assertOk()->assertJsonPath('created', false)->assertJsonPath('id', $id);
         $this->assertDatabaseCount('requirements', 1);
         $this->assertDatabaseCount('requirement_events', 1);
-        $this->assertDatabaseHas('requirements', ['id' => $id, 'project_id' => $project->id, 'status' => 'RECEIVED']);
+        $this->assertDatabaseHas('requirements', ['id' => $id, 'project_id' => $project->id, 'topic_key' => 'gmail:jaime.fuentes@tecnich.cl:thread-456', 'status' => 'RECEIVED']);
         $this->assertDatabaseHas('requirement_events', ['requirement_id' => $id, 'actor' => 'integration:dot', 'action' => 'requirement.created']);
         $this->assertSame(0, Requirement::findOrFail($id)->tasks()->count());
     }

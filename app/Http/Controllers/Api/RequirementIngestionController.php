@@ -29,6 +29,7 @@ class RequirementIngestionController extends Controller
         $data = $request->validate([
             'source' => ['required', 'string', 'max:64', 'regex:/\A[a-z][a-z0-9_-]{0,63}\z/'],
             'external_reference' => ['required', 'string', 'max:255'],
+            'topic_key' => ['nullable', 'string', 'max:255'],
             'sender' => ['nullable', 'string', 'max:255'],
             'subject' => ['required', 'string', 'max:255'],
             'original_content' => ['required', 'string', 'max:65536'],
@@ -57,6 +58,7 @@ class RequirementIngestionController extends Controller
                 ['source' => $data['source'], 'external_reference' => $data['external_reference']],
                 $fields + [
                     'kind' => $data['kind'] ?? 'DEVELOPMENT',
+                    'topic_key' => $data['topic_key'] ?? null,
                     'project_id' => $projectId,
                     'classification_confidence' => $data['classification_confidence'] ?? null,
                     'priority' => $data['priority'] ?? 'NORMAL',

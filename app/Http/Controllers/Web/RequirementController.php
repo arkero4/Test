@@ -51,6 +51,7 @@ class RequirementController extends Controller
             'kind' => ['required', Rule::in(['DEVELOPMENT', 'PROJECT_RESPONSE', 'SYSTEM_IMPROVEMENT'])],
             'source' => ['required', 'string', 'max:64', 'regex:/\A[a-z][a-z0-9_-]{0,63}\z/'],
             'external_reference' => ['nullable', 'string', 'max:255'], 'sender' => ['nullable', 'string', 'max:255'],
+            'topic_key' => ['nullable', 'string', 'max:255'], 'codex_thread_id' => ['nullable', 'uuid'],
             'subject' => ['required', 'string', 'max:255'], 'original_content' => ['required', 'string'],
             'summary' => ['nullable', 'string'], 'context' => ['nullable', 'string'],
             'project_id' => ['nullable', 'exists:projects,id'], 'priority' => ['required', Rule::in(['LOW', 'NORMAL', 'HIGH', 'URGENT'])],
@@ -58,6 +59,9 @@ class RequirementController extends Controller
         ]));
         if ($data['kind'] === 'PROJECT_RESPONSE') {
             $data['requires_approval'] = true;
+        }
+        if (! empty($data['codex_thread_id']) && (empty($data['project_id']) || empty($data['topic_key']))) {
+            throw ValidationException::withMessages(['codex_thread_id' => 'Asigna proyecto y clave de tema para vincular un chat.']);
         }
 
         return $data;
